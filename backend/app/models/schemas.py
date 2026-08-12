@@ -7,7 +7,7 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -27,10 +27,26 @@ class DecisionStatus(str, Enum):
     ADJUSTED = "adjusted"
 
 
+class TriggeredRule(BaseModel):
+    """
+    评分规则命中的一条记录。rule 是规则的稳定标识符（不含具体语言），
+    params 是渲染文案模板时需要的参数（比如命中的关键词分组、客户套餐、次数等）。
+    前端 translations.ts 里为每个 rule 配置 zh/en 文案模板，用 params 填充。
+    """
+
+    rule: str
+    params: Dict[str, Any] = Field(default_factory=dict)
+
+
 class Ticket(BaseModel):
     id: str
     title: str
     content: str
+
+    # 仅用于 MVP 演示阶段的模拟数据双语字段，见 mock_source.py 顶部说明。
+    # 真实数据源没有这两个字段也完全没问题（默认 None，前端会自动 fallback 到中文字段）。
+    title_en: Optional[str] = None
+    content_en: Optional[str] = None
 
     customer_id: str
     customer_name: str
@@ -43,7 +59,7 @@ class Ticket(BaseModel):
 
     # 以下三个字段由 scorer.py 在读取时填充，数据源本身不负责打分
     suggested_priority: Optional[int] = None
-    suggested_reason: Optional[str] = None
+    suggested_reason: Optional[List[TriggeredRule]] = None
     final_priority: Optional[int] = None  # 人工确认/调整后的最终优先级，默认等于建议值
 
 
@@ -51,7 +67,7 @@ class PriorityResult(BaseModel):
     """scorer.score() 的统一输出格式，未来换成 sklearn 模型也要返回这个结构"""
 
     priority: int = Field(ge=1, le=4)
-    reason: str
+    reason: List[TriggeredRule]
 
 
 class AdjustRequest(BaseModel):

@@ -1,8 +1,11 @@
-const PRIORITY_LABELS: Record<number, string> = {
-  1: "低",
-  2: "中",
-  3: "高",
-  4: "紧急",
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import type { TranslationKey } from "@/lib/i18n/translations";
+
+const PRIORITY_LABEL_KEYS: Record<number, TranslationKey> = {
+  1: "priority.low",
+  2: "priority.medium",
+  3: "priority.high",
+  4: "priority.urgent",
 };
 
 const PRIORITY_STYLES: Record<number, string> = {
@@ -13,10 +16,12 @@ const PRIORITY_STYLES: Record<number, string> = {
 };
 
 export default function PriorityBadge({ priority }: { priority: number | null }) {
+  const { t } = useLanguage();
+
   if (priority === null) {
     return (
       <span className="inline-block rounded-full px-2.5 py-0.5 text-xs font-medium bg-slate-100 text-slate-500">
-        未评分
+        {t("priority.unscored")}
       </span>
     );
   }
@@ -27,7 +32,7 @@ export default function PriorityBadge({ priority }: { priority: number | null })
         PRIORITY_STYLES[priority] ?? "bg-slate-100 text-slate-700"
       }`}
     >
-      {PRIORITY_LABELS[priority] ?? priority} ({priority})
+      {PRIORITY_LABEL_KEYS[priority] ? t(PRIORITY_LABEL_KEYS[priority]) : priority} ({priority})
     </span>
   );
 }

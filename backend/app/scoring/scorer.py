@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import List
 
-from app.models.schemas import CustomerPlan, PriorityResult, Ticket
+from app.models.schemas import CustomerPlan, PriorityResult, Ticket, TriggeredRule
 
 RECENT_WINDOW_DAYS = 30
 RECENT_TICKET_THRESHOLD = 2  # 30天内（不含本工单）已提交的工单数 >= 这个值才加分
@@ -25,7 +25,6 @@ KEYWORD_GROUPS = {
     "login": ["无法登录", "登录失败", "登陆失败", "无法登陆", "登录不了", "登陆不了"],
     "refund": ["退款", "退费"],
 }
-GROUP_LABELS = {"billing": "扣费异常", "login": "登录失败", "refund": "退款"}
 
 MIN_PRIORITY = 1
 MAX_PRIORITY = 4
@@ -71,34 +70,47 @@ def _matched_keyword_groups(text: str) -> List[str]:
 
 
 def score(features: ScoringFeatures) -> PriorityResult:
-    """规则引擎评分。返回优先级(1低-4紧急) + 人类可读理由"""
+    """
+    规则引擎评分。返回优先级(1低-4紧急) + 命中的规则列表（结构化，不含具体语言文案）。
+
+    reason 不再是拼好的中文句子，而是 [{rule, params}] 的列表——每条记录只携带
+    "命中了哪条规则 + 渲染文案需要的参数"，具体的 zh/en 文案模板由前端
+    lib/i18n/translations.ts 维护，展示时按当前语言拼出完整理由。
+    """
     priority = MIN_PRIORITY
-    reasons: List[str] = []
+    rules: List[TriggeredRule] = []
 
     text = f"{features.title} {features.content}"
     matched_groups = _matched_keyword_groups(text)
     if matched_groups:
         priority += 1
-        labels = "+".join(GROUP_LABELS[g] for g in matched_groups)
         if len(matched_groups) >= 2:
             priority += 1
-            reasons.append(f"含{labels}等多重关键词组合，历史平均处理耗时更长")
+            rules.append(TriggeredRule(rule="keyword_combo", params={"groups": matched_groups}))
         else:
-            reasons.append(f"含{labels}关键词")
+            rules.append(TriggeredRule(rule="keyword_single", params={"groups": matched_groups}))
 
     if features.customer_plan in HIGH_PAYING_PLANS:
         priority += 1
-        reasons.append(f"客户为{features.customer_plan.value}高付费套餐，需优先响应")
+        rules.append(
+            TriggeredRule(rule="high_tier_customer", params={"plan": features.customer_plan.value})
+        )
 
     if features.customer_recent_ticket_count >= RECENT_TICKET_THRESHOLD:
         priority += 1
-        reasons.append(
-            f"该客户{RECENT_WINDOW_DAYS}天内已提交{features.customer_recent_ticket_count}次工单，存在反复问题风险"
+        rules.append(
+            TriggeredRule(
+                rule="repeat_customer",
+                params={
+                    "count": features.customer_recent_ticket_count,
+                    "days": RECENT_WINDOW_DAYS,
+                },
+            )
         )
 
     priority = min(priority, MAX_PRIORITY)
 
-    if not reasons:
-        reasons.append("常规工单，未命中高优先级规则")
+    if not rules:
+        rules.append(TriggeredRule(rule="no_rules_matched", params={}))
 
-    return PriorityResult(priority=priority, reason="；".join(reasons))
+    return PriorityResult(priority=priority, reason=rules)

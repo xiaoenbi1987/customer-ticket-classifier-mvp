@@ -25,6 +25,26 @@ backend/
   .env.example
 ```
 
+## 关于工单标题/内容的中英双语字段（仅限 MVP 演示，真实数据不能照搬）
+
+`Ticket` 模型里的 `title_en` / `content_en` 是 `mock_source.py` 给每条模拟工单预先配好的
+英文翻译，只用来在 MVP 演示阶段实现"切到英文界面时工单内容也跟着显示英文"的效果。
+
+**这种"一份数据配两个语言字段"的做法只对固定的模拟数据成立，接入真实客户工单后不能这样做**：
+真实工单的标题和内容是客户自己提交的原始输入，本身就可能是中文、英文或其它语言，
+不存在"预先配好对应译文"这回事，没有字段可以配对翻译。
+
+如果未来要实现"英文界面下自动把客户提交的中文工单翻译成英文显示"（或反过来），
+需要接入实时机器翻译 API（调用翻译服务，对 `title`/`content` 做即时翻译），这涉及：
+
+- 额外的调用成本（按字符/请求计费）
+- 翻译质量和延迟的取舍（是否需要缓存、要不要给客服提供"仅供参考，非原文"的提示）
+- 是否所有语言都要翻译，还是只覆盖界面支持的语言
+
+这是一个独立于当前 MVP 的功能决策，需要单独讨论后再实现；接入 `real_source.py` 时
+`title_en`/`content_en` 直接留空（`None`）即可，前端会自动 fallback 显示原始语言的
+`title`/`content`。
+
 ## 启动方式
 
 ```bash
@@ -82,6 +102,48 @@ curl http://127.0.0.1:8000/api/stats
 每次 confirm / adjust 都会在 `data/adjustment_log.sqlite3` 里写入一条记录，可以直接用
 `sqlite3 data/adjustment_log.sqlite3 "select * from adjustment_log;"` 查看，这些数据就是未来训练
 真实模型用的标注样本。
+
+## adjustment_log 是操作流水，不是标注表——训练前必须按工单去重
+
+表结构（见 `app/storage/adjustment_log.py`）：
+
+| 字段 | 说明 |
+| --- | --- |
+| `id` | 自增主键，同时是同一时刻写入时的先后顺序兜底 |
+| `ticket_id` | 工单 ID，**不唯一**，同一工单可以有多条记录 |
+| `original_priority` | 系统建议的优先级 |
+| `adjusted_priority` | 人工最终选择的优先级（`action="confirm"` 时与 `original_priority` 相同） |
+| `action` | `"confirm"`（认可建议）或 `"adjust"`（人工改过） |
+| | 前端保证两者互斥：下拉框 == 建议值时只能点「确认」，!= 建议值时只能点「调整」。<br>因此 `action="confirm"` ⟺ `original_priority == adjusted_priority`，`action="adjust"` ⟺ 两者不等，<br>每条 adjust 记录都对应一次真实发生的改动，不会出现语义重叠的行 |
+| `adjusted_at` | 写入时刻，UTC ISO8601 字符串，用于区分同一工单多条记录的先后 |
+
+**这张表按设计就允许同一个 `ticket_id` 出现多条记录。** 前端对已确认/已调整的工单仍然开放
+"调整"按钮，业务上人工有权反复改主意（比如先按建议确认为 2，后来发现严重升为 4），每改一次
+就追加一条新记录，历史记录不会被覆盖或删除。这是有意为之：这些中间过程是审计线索。
+
+**因此把这批数据拿去训练模型时，必须先按 `ticket_id` 分组、取 `adjusted_at` 最新的一条作为该
+工单唯一的最终标注，其余记录只作为操作历史留存，不能直接当训练样本用。** 否则会有两个后果：
+同一条工单被重复计入、在数据集里被隐性加权；以及同一条工单出现互相矛盾的标签
+（先标 2 后标 4），互相干扰、拉低模型质量。
+
+取最终标注的 SQL 写法（`adjusted_at` 相同的极端情况下用自增 `id` 兜底）：
+
+```sql
+SELECT l.*
+FROM adjustment_log AS l
+JOIN (
+    SELECT ticket_id, MAX(adjusted_at || '#' || printf('%012d', id)) AS latest
+    FROM adjustment_log
+    GROUP BY ticket_id
+) AS m
+  ON l.ticket_id = m.ticket_id
+ AND l.adjusted_at || '#' || printf('%012d', id) = m.latest;
+```
+
+`adjusted_at` 存的是 UTC ISO8601 定长字符串，字典序等价于时间序，所以可以直接用字符串比较排序。
+
+`list_adjustments()` 返回的是**全部**记录（按时间倒序），它是操作流水的原样导出，
+没有做去重——去重是调用方在准备训练集时的责任。
 
 ## 接入真实数据集时该怎么做
 

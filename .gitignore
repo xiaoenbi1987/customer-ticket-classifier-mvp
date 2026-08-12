@@ -17,6 +17,10 @@ backend/data/*.sqlite3
 backend/.env
 !backend/.env.example
 
+# === 本地数据集（体积大，不进版本库；需要时自行从 Kaggle 下载解压到这里）===
+database-kaggle/
+database-kaggle.zip
+
 # === misc ===
 .DS_Store
 *.pem

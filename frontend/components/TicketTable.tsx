@@ -1,4 +1,5 @@
 import type { Ticket } from "@/lib/types";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import TicketRow from "./TicketRow";
 
 export default function TicketTable({
@@ -10,8 +11,10 @@ export default function TicketTable({
   onConfirm: (ticketId: string) => Promise<void>;
   onAdjust: (ticketId: string, newPriority: number) => Promise<void>;
 }) {
+  const { t } = useLanguage();
+
   if (tickets.length === 0) {
-    return <p className="text-sm text-slate-500">暂无工单数据</p>;
+    return <p className="text-sm text-slate-500">{t("table.empty")}</p>;
   }
 
   return (
@@ -19,12 +22,12 @@ export default function TicketTable({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
-            <th className="py-2 pl-4 pr-4 font-medium">优先级</th>
-            <th className="py-2 pr-4 font-medium">工单内容</th>
-            <th className="py-2 pr-4 font-medium">客户</th>
-            <th className="py-2 pr-4 font-medium">评分理由</th>
-            <th className="py-2 pr-4 font-medium">决策状态</th>
-            <th className="py-2 font-medium">操作</th>
+            <th className="py-2 pl-4 pr-4 font-medium">{t("table.priority")}</th>
+            <th className="py-2 pr-4 font-medium">{t("table.content")}</th>
+            <th className="py-2 pr-4 font-medium">{t("table.customer")}</th>
+            <th className="py-2 pr-4 font-medium">{t("table.reason")}</th>
+            <th className="py-2 pr-4 font-medium">{t("table.decisionStatus")}</th>
+            <th className="py-2 font-medium">{t("table.actions")}</th>
           </tr>
         </thead>
         <tbody className="px-4">

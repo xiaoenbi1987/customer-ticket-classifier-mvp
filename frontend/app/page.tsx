@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { adjustTicket, confirmTicket, getStats, getTickets } from "@/lib/api";
 import type { Stats, Ticket } from "@/lib/types";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import StatsBar from "@/components/StatsBar";
 import TicketTable from "@/components/TicketTable";
 
 export default function Home() {
+  const { t } = useLanguage();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -22,15 +24,11 @@ export default function Home() {
       setTickets(ticketData);
       setStats(statsData);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "加载失败，请确认后端服务是否已启动",
-      );
+      setError(err instanceof Error ? err.message : t("errors.loadFailed"));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadData();
@@ -51,10 +49,10 @@ export default function Home() {
       <main className="mx-auto max-w-6xl px-6 py-10">
         <header className="mb-6">
           <h1 className="text-2xl font-semibold text-slate-900">
-            客服工单智能分类系统
+            {t("page.title")}
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            按优先级排序的工单列表，支持确认或人工调整建议优先级
+            {t("page.subtitle")}
           </p>
         </header>
 
@@ -65,7 +63,7 @@ export default function Home() {
         )}
 
         {isLoading ? (
-          <p className="text-sm text-slate-500">加载中...</p>
+          <p className="text-sm text-slate-500">{t("common.loading")}</p>
         ) : (
           <div className="space-y-6">
             {stats && <StatsBar stats={stats} />}

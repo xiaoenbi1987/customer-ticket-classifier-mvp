@@ -1,4 +1,5 @@
 import type { Stats } from "@/lib/types";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
@@ -10,17 +11,19 @@ function StatCard({ label, value }: { label: string; value: string }) {
 }
 
 export default function StatsBar({ stats }: { stats: Stats }) {
+  const { t } = useLanguage();
+
   return (
     <div className="flex flex-wrap gap-3">
-      <StatCard label="工单总数" value={String(stats.total)} />
-      <StatCard label="已处理" value={String(stats.processed)} />
-      <StatCard label="待处理" value={String(stats.pending)} />
+      <StatCard label={t("stats.total")} value={String(stats.total)} />
+      <StatCard label={t("stats.processed")} value={String(stats.processed)} />
+      <StatCard label={t("stats.pending")} value={String(stats.pending)} />
       <StatCard
-        label="平均处理时长"
+        label={t("stats.avgHandlingTime")}
         value={
           stats.avg_handling_time_hours !== null
-            ? `${stats.avg_handling_time_hours} 小时`
-            : "暂无数据"
+            ? `${stats.avg_handling_time_hours} ${t("stats.hoursUnit")}`
+            : t("common.noData")
         }
       />
     </div>
