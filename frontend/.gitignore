@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# 但模板文件要进版本库：别人 clone 下来得知道有哪些变量要配。
+# 子目录 .gitignore 优先级高于根目录，所以这条例外必须写在这里，
+# 写在根 .gitignore 里是不生效的。
+!.env*.example
 
 # vercel
 .vercel

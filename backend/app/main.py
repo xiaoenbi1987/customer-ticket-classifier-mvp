@@ -10,7 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import ADJUSTMENT_LOG_DB_PATH, CORS_ALLOW_ORIGINS, get_data_source
 from app.data_sources.base import TicketDataSource
-from app.models.schemas import AdjustRequest, DecisionStatus, StatsResponse, Ticket
+from app.models.schemas import (
+    AdjustmentLog,
+    AdjustRequest,
+    DecisionStatus,
+    StatsResponse,
+    Ticket,
+)
 from app.scoring.scorer import extract_features, score
 from app.storage import adjustment_log as adjustment_log_storage
 
@@ -121,3 +127,14 @@ def get_stats(ds: TicketDataSource = Depends(_get_ds)) -> StatsResponse:
         pending=pending,
         avg_handling_time_hours=avg_handling_time_hours,
     )
+
+
+@app.get("/api/adjustments", response_model=List[AdjustmentLog])
+def list_adjustments() -> List[AdjustmentLog]:
+    """
+    导出全部人工标注记录（确认/调整），供将来训练真实模型使用。
+
+    部署到远端后没法直接打开 SQLite 文件，标注数据必须有一个取出来的出口，
+    否则写进去的数据等于拿不回来。
+    """
+    return adjustment_log_storage.list_adjustments()
